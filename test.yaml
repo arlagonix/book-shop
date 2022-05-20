@@ -1,0 +1,1820 @@
+openapi: "3.0.2"
+info:
+  title: MDDC
+  version: "1.3"
+
+servers:
+  - url: /
+
+tags:
+  - name: auth
+    description: Авторизация, регистрация, смена пароля
+
+  - name: users
+    description: Управление информацией о пользователях
+
+  - name: research
+    description: Информация об исследованиях
+
+  - name: analysis
+    description: Управление запросами на анализ
+
+  - name: companies
+    description: Управление организациями
+
+  - name: sources
+    description: Информация об источниках данных
+
+  - name: gateways
+    description: Информация о шлюзах
+    
+  - name: operations
+    description: Прочие операции
+
+paths:
+
+
+  # AUTH
+
+  /server/api/auth.register:
+    
+    post:
+      deprecated: true
+      tags:
+        - auth
+      security:
+        - ApiKeyAuth: [ ]
+      description: register new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              # $ref: '#/components/schemas/RegisterBody'
+        required: true
+      responses:
+        200:
+          description: Created
+
+  /server/api/auth.login:
+    
+    post:
+      tags:
+        - auth
+      summary: Создает сессию и возвращает токен и информацию о пользователе
+      description: > 
+        **Права доступа:** `Любой пользователь`
+
+      requestBody:
+        $ref: "#/components/requestBodies/LoginBody"
+      
+      responses:
+        200:
+          $ref: "#/components/responses/200-session-created"
+        400:
+          description: ""
+          content:
+            application-json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              examples:
+                1: 
+                  $ref: '#/components/examples/400-wrong-request'
+                2:
+                  $ref: '#/components/examples/400-no-login'
+                3:
+                  $ref: '#/components/examples/400-no-password'
+        401:
+          description: ""
+          content:
+            application-json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              examples:
+                1: 
+                  $ref: '#/components/examples/401-wrong-login'
+                2:
+                  $ref: '#/components/examples/401-wrong-password'
+
+  /server/api/auth.change_password:
+    
+    post:
+      tags:
+        - auth
+      security:
+        - ApiKeyAuth: [ ]
+      summary: Изменяет пароль пользователя
+      description: > 
+        **Права доступа**: `Авторизованный пользователь`
+          
+        Ограничения на `Пароль`:
+          * 8 символов ≤ Длина пароля ≤ 128 символов
+          * ≥ 1 спец. символа: `( . , : ; ? ! * + % - < > @ [ ] { } / \ _ {} $ # )`
+          * ≥ 1 букву в верхнем регистре лат. алфавита: `a - z`
+          * ≥ 1 букву в нижнем регистре лат. алфавита: `A - Z`
+          * ≥ 1 цифру: `0 - 9`
+          * Прочие символы запрещены
+          
+        Но метод не проверяет эти ограничения
+
+      requestBody:
+        $ref: '#/components/requestBodies/ChangePassword'
+        
+      responses:
+        200:
+          description: Пароль изменён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                res: "70"
+                error: null
+                comment: null
+        400:
+          description: ""
+          content:
+            application-json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              examples:
+                1: 
+                  $ref: '#/components/examples/400-wrong-request'
+                2:
+                  $ref: '#/components/examples/400-no-password'
+        401:
+          $ref: "#/components/responses/401-wrong-token"
+
+  # USERS
+
+  /server/api/user_info:
+    
+    get:
+      summary: Возвращает информацию о пользователе
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: >
+        **Права доступа:** `Авторизованный пользователь`
+      responses:
+        200:
+          description: Список правил маршрутизации получен
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    required:
+                      - res
+                    properties:
+                      res:
+                        allOf:
+                          - type: object
+                            required:
+                              - user_info
+                            properties:
+                              user_info:
+                                $ref: '#/components/schemas/User' 
+                          - type: object
+                            required:
+                              - balance
+                            properties:
+                              balance:
+                                $ref: '#/components/schemas/Balance' 
+                  - $ref: '#/components/schemas/ErrorAndComments'
+        401:
+          $ref: "#/components/responses/401-wrong-token"
+
+  /server/api/users:
+    
+    post:
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create user"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                  example: doctor_test
+                company_id:
+                  type: integer
+                  example: 1
+                user_type:
+                  type: string
+                  enum: [ "doctor", "consultant" ]
+                email:
+                  type: string
+
+      responses:
+        200:
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    get:
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create user"
+      parameters:
+        - in: query
+          name: login
+          schema:
+            type: string
+
+        - in: query
+          name: login_part
+          schema:
+            type: string
+        - in: query
+          name: user_type
+          schema:
+            type: string
+            enum: [ doctor, consultant ]
+
+        - in: query
+          name: state
+          schema:
+            type: integer
+            description: 1 - if blocked, 0 - if not
+        - in: query
+          name: company_id
+          schema:
+            type: integer
+        - in: query
+          name: company_name
+          schema:
+            type: string
+        - in: query
+          name: need_change_pwd
+          schema:
+            type: integer
+            enum: [ 0,1 ]
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: '[date_create, asc]'
+        - in: query
+          name: fields
+          schema:
+            type: string
+            example: '[id,login,company_name]'
+        - in: query
+          name: lim
+          schema:
+            type: integer
+            example: 10
+        - in: query
+          name: page
+          schema:
+            type: integer
+            example: 1
+      responses:
+        200:
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  # COMPANIES
+
+  /server/api/create_company:
+    
+    post:
+      deprecated: true
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                company_name:
+                  type: string
+                company_type:
+                  description: consult_center or hospital
+                  type: string
+                  enum: [ hospital, consult_center ]
+      responses:
+        200:
+          description: create company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+
+
+  /server/api/consult_center_list:
+    
+    get:
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      summary: Возвращает список консультационных центров
+      responses:
+        200:
+          description: list of active consultant center's
+
+  /server/api/research_list:
+
+    get:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: List of consultant researches
+      parameters:
+        - in: query
+          name: research_uid
+          schema:
+            type: string
+            format: uid
+        - in: query
+          name: num_of_page
+          schema:
+            type: string
+        - in: query
+          name: lim
+          schema:
+            type: string
+        - in: query
+          name: research_type
+          schema:
+            type: string
+        - in: query
+          name: current_research_status
+          schema:
+            type: string
+        - in: query
+          name: date_create_from
+          schema:
+            type: string
+            example: "2020-01-01T12:00:00+03:00"
+        - in: query
+          name: date_create_to
+          schema:
+            type: string
+            example: "2020-01-01T12:00:00+03:00"
+        - in: query
+          name: name_of_patient
+          schema:
+            type: string
+        - in: query
+          name: analysis_type
+          schema:
+            description: type of requested analysis
+            type: string
+            enum: [ null, ai_doctor, ai_only, doctor_only, all ]
+      responses:
+        200:
+          description: Created
+          content:
+            application-json:
+              schema:
+                type: object
+                properties:
+                  research_list:
+                    type: array
+                    description: pagination slice of researches
+                  total:
+                    type: integer
+                    description: total number of filtered researches
+
+  /server/api/research_info:
+    
+    get:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: List of consultant researches
+      parameters:
+        - name: research_uid
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uid
+      responses:
+        200:
+          description: research info
+
+  /server/api/research/{research_uid}/feedback:
+    
+    post:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                algorithm_code:
+                  type: string
+                value:
+                  type: string
+                comment:
+                  type: string
+      description: Feedback
+      parameters:
+        - name: research_uid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uid
+      responses:
+        200:
+          description: research info
+
+  /server/api/researches/{research_uid}/services:
+    
+    get:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: "List of services"
+      parameters:
+        - in: path
+          name: research_uid
+          schema:
+            type: string
+            format: uid
+          required: true
+      responses:
+        200:
+          description: List of services
+
+  /server/api/send_research:
+    
+    put:
+      tags:
+        - research
+      description: put research in queue of consultant center
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - research_uid
+                - notes
+                - research_name
+                - algorithms
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+                notes:
+                  type: string
+                research_name:
+                  type: string
+                additional_info:
+                  type: object
+                  properties:
+                    Dose:
+                      type: string
+                      example: "123"
+                    ContrastAgent:
+                      type: string
+                      example: "Brewdog Hazy Jane"
+                    PatientBirthDate:
+                      type: string
+                      format: date
+                      example: "1988-06-02"
+                    NameOfPatient:
+                      type: string
+                      example: "Иванов Иван Иванович"
+                algorithms:
+                  type: array
+                  items:
+                    type: string
+
+      responses:
+        200:
+          description: research assigned to consultant center
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+
+  /server/api/fill_consultant_analysis:
+    
+    post:
+      tags:
+        - analysis
+      description: save consultant analysis report's fields
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - research_uid
+                - description
+                - conclusion
+                - report_name
+                - consultant_name
+                - recommendations
+                - research_area
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+                description:
+                  type: string
+                conclusion:
+                  type: string
+                report_name:
+                  type: string
+                consultant_name:
+                  type: string
+                recommendations:
+                  type: string
+                research_area:
+                  type: string
+
+      responses:
+        200:
+          description: research assigned to consultant center
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+  
+  /server/api/get_consultant_analysis:
+    
+    get:
+      tags:
+        - analysis
+      security:
+        - ApiKeyAuth: [ ]
+      description: Analysis report fields
+      parameters:
+        - name: research_uid
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uid
+      responses:
+        200:
+          description: Analysis fields
+  
+  /server/api/delete_research:
+    
+    post:
+      tags:
+        - research
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+      responses:
+        200:
+          description: delete created research
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+
+  /server/api/return_research:
+    
+    put:
+      tags:
+        - analysis
+      description: Return research by consultant to queue
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+      responses:
+        200:
+          description: research returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+
+  /server/api/research_in_work:
+    
+    put:
+      tags:
+        - analysis
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+      responses:
+        200:
+          description: get research in work by consultant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+  
+  /server/api/finish_consultant_analysis:
+    
+    put:
+      tags:
+        - analysis
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+      responses:
+        200:
+          description: finish research by consultant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+      security:
+        - ApiKeyAuth: [ ]
+  
+  /server/api/alert_research_status:
+    
+    post:
+      tags:
+        - research
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uid
+      responses:
+        200:
+          description: alert research by socket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/research:
+    
+    post:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      requestBody:
+        content:
+          multipart/form-data: # Media type
+            schema: # Request payload
+              type: object
+              properties: # Request parts
+                research_info: # Part 1 (string value)
+                  type: object
+                  properties:
+                    Dose:
+                      type: string
+                      example: ''
+                    ContrastAgent:
+                      type: string
+                      example: ''
+                    PatientBirthDate:
+                      type: string
+                    NameOfPatient:
+                      type: string
+                      example: ''
+                    PatientInfo:
+                      type: object
+                      example:
+                        { }
+                research_type: # Part2 (object)
+                  type: string
+                  example: CT Stroke
+                research_file: # Part 3 (an image)
+                  type: string
+                  format: binary
+                research_name:
+                  type: string
+                ip: # Part2 (object)
+                  type: string
+                  example: 127.0.0.1
+                ae_title: # Part2 (object)
+                  type: string
+                  example: "LOCAL"
+                institution_name: # Part2 (object)
+                  type: string
+                  example: CT Stroke
+                notes:
+                  type: string
+                use_ai:
+                  type: integer
+                  example: 1
+                force_send_research:
+                  type: integer
+                  example: 0
+
+      responses:
+        200:
+          description: Created
+  
+  /server/api/dicom/queue:
+    
+    get:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: "get list to download"
+      parameters:
+        - in: query
+          name: date_from
+          example: "2021-01-01T12:00:01+05:00"
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        200:
+          description: list of analyses and researches to download
+
+  /server/upload/report:
+    
+    post:
+      tags:
+        - analysis
+      security:
+        - ApiKeyAuth: [ ]
+      requestBody:
+        content:
+          multipart/form-data: # Media type
+            schema: # Request payload
+              type: object
+              properties: # Request parts
+                response_file: # Part2 (object)
+                  type: string
+                  format: binary
+                research_uid: # Part 3 (an image)
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          description: File uploaded
+  
+  /server/upload/analysis_result:
+    
+    post:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      requestBody:
+        content:
+          multipart/form-data: # Media type
+            schema: # Request payload
+              type: object
+              properties: # Request parts
+                response_file:
+                  type: string
+                  format: binary
+                research_uid:
+                  type: string
+                  format: uuid
+                algorithm_code:
+                  type: string
+                has_pathology:
+                  type: string
+                conclusion:
+                  type: string
+                status:
+                  type: string
+      responses:
+        200:
+          description: Analysis file uploaded
+  
+  /server/api/delete_response_file:
+    
+    post:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Delete response file"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                research_uid:
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/download/{file_type}/{research_uid}:
+    
+    get:
+      tags:
+        - research
+      security:
+        - ApiKeyAuth: [ ]
+      description: "download research/analysis file"
+      parameters:
+        - in: path
+          name: file_type
+          schema:
+            type: string
+            enum: [ research, stroke, mammo, consultant_analysis, consultant_verify, iralabs-covid19, report, consultant_report ]
+          required: true
+        - in: path
+          name: research_uid
+          schema:
+            type: string
+            format: uid
+          required: true
+      responses:
+        200:
+          description: file itself
+
+  /server/api/gateways:
+    
+    get:
+      tags:
+        - gateways
+      security:
+        - ApiKeyAuth: [ ]
+      description: List of gateways
+      parameters:
+        - in: query
+          name: login
+          schema:
+            type: string
+            example: "gateway"
+        - in: query
+          name: fields
+          schema:
+            type: string
+            example: '[id,login]'
+        - in: query
+          name: state
+          schema:
+            type: integer
+            description: 1 - if blocked, 0 - if not
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: '[date_create, asc]'
+        - in: query
+          name: lim
+          schema:
+            type: integer
+            example: 10
+
+
+        - in: query
+          name: page
+
+          schema:
+            type: integer
+            example: 1
+
+      responses:
+        200:
+          description: Created
+          content:
+            application-json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    post:
+      tags:
+        - gateways
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create gateway"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                  example: gateway_test
+
+      responses:
+        200:
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/gateway-hospitals:
+    
+    post:
+      tags:
+        - gateways
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create gateway-hospital connection"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gateway_id:
+                  type: integer
+                  example: 1
+                hospital_id:
+                  type: integer
+                  example: 1
+
+      responses:
+        200:
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/operations/change_user_state:
+    
+    post:
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: "change user state"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                  example: 2
+                state:
+                  type: integer
+                  example: 0
+      responses:
+        200:
+          description: state changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/users/{user_id}:
+    
+    patch:
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Change user"
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: tmp@mail.ru
+      responses:
+        200:
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/operations/reset_password:
+    
+    post:
+      tags:
+        - users
+      security:
+        - ApiKeyAuth: [ ]
+      description: "reset user password"
+
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                  example: 1
+      responses:
+        200:
+          description: new password and login if no emal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/generate_login:
+    
+    post:
+      tags:
+        - operations
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Generate login"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_type:
+                  type: string
+                  enum: [ "doctor", "consultant", "gateway" ]
+
+      responses:
+        200:
+          description: generated unique login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/companies:
+    
+    post:
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create company"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                company_name:
+                  type: string
+                  example: Доктор АйБолит
+                company_type:
+                  type: integer
+                  enum: [ "hospital", "consult_center" ]
+                  example: "hospital"
+                inn:
+                  type: string
+                  example: "0123456789"
+                kpp:
+                  type: string
+                  example: "123456789"
+                contact_number:
+                  type: string
+                email:
+                  type: string
+                gos:
+                  type: boolean
+                  example: false
+      responses:
+        200:
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    get:
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      description: "search companies"
+      parameters:
+        - in: query
+          name: inn
+          schema:
+            type: string
+
+        - in: query
+          name: company_type
+          schema:
+            type: string
+            enum: [ "hospital", "consult_center" ]
+        - in: query
+          name: company_name
+          schema:
+            type: string
+
+        - in: query
+          name: gateway_login
+          schema:
+            type: string
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: '[date_create, asc]'
+        - in: query
+          name: lim
+          schema:
+            type: integer
+            example: 10
+        - in: query
+          name: page
+          schema:
+            type: integer
+            example: 1
+      responses:
+        200:
+          description: list of companies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/companies/{company_id}:
+    
+    patch:
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Change company"
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                company_name:
+                  type: string
+                  example: "Канатчикова дача"
+                inn:
+                  type: string
+                  example: "0123456789"
+                kpp:
+                  type: string
+                  example: "123456789"
+                email:
+                  type: string
+                  example: tmp@mail.ru
+                contact_number:
+                  type: string
+                  example: "+79091111111"
+      responses:
+        200:
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    get:
+      tags:
+        - companies
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Get company"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sid:
+                  type: integer
+                  example: 1
+      responses:
+        200:
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/sources:
+    
+    get:
+      tags:
+        - sources
+      security:
+        - ApiKeyAuth: [ ]
+      description: "search sources"
+      parameters:
+
+        - in: query
+          name: ip
+          schema:
+            type: string
+        - in: query
+          name: ae_title
+          schema:
+            type: string
+        - in: query
+          name: company_id
+          schema:
+            type: integer
+        - in: query
+          name: company_name
+          schema:
+            type: string
+        - in: query
+          name: lim
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: '[date_create, asc]'
+      responses:
+        200:
+          description: list of sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    post:
+      tags:
+        - sources
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Create source"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_name:
+                  type: string
+                  example: Просто ПАКС
+                ip:
+                  type: string
+                  example: "0.0.0.0"
+                ae_title:
+                  type: string
+                  example: "STORESCU"
+                institution_name:
+                  type: string
+                company_id:
+                  type: integer
+                  example: 1
+      responses:
+        200:
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/sources/{source_id}:
+    
+    get:
+      tags:
+        - sources
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Get source"
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: source info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+    
+    patch:
+      tags:
+        - sources
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Change source"
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ip:
+                  type: string
+                  example: "0.0.0.0"
+                ae_title:
+                  type: string
+                  example: "STORESCU"
+                institution_name:
+                  type: string
+      responses:
+        200:
+          description: source info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/operations/stop-source:
+    
+    post:
+      tags:
+        - sources
+      security:
+        - ApiKeyAuth: [ ]
+      description: "Turn off source"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_id:
+                  type: string
+                  example: 1
+      responses:
+        200:
+          description: source info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultResponse'
+
+  /server/api/liveness:
+    
+    get:
+      tags:
+        - operations
+      responses:
+        200:
+          description: service is alive
+  
+  /server/api/readiness:
+    
+    get:
+      tags:
+        - operations
+      responses:
+        200:
+          description: service is ready
+
+components:
+
+  securitySchemes:
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: token
+  
+  requestBodies:
+    
+    LoginBody:
+      description: >    
+          * Ограничения на `Логин`:
+            * У пользователей должны быть разные логины
+            * 3 символа ≤ Длина логина ≤ 128 символов
+            * Может содержать лат. буквы в ниж регистре: `a-z`
+            * Может содержать лат. буквы в верхнем регистре: `A-Z`
+            * Может содержать цифры: `0-9`
+            * Может содержать спец. символы: `_ - . `
+            * Прочие символы запрещены
+              
+          * Ограничения на `Пароль`:
+            * 8 символов ≤ Длина пароля ≤ 128 символов
+            * ≥ 1 спец. символа: `( . , : ; ? ! * + % - < > @ [ ] { } / \ _ {} $ # )`
+            * ≥ 1 букву в верхнем регистре лат. алфавита: `a - z`
+            * ≥ 1 букву в нижнем регистре лат. алфавита: `A - Z`
+            * ≥ 1 цифру: `0 - 9`
+            * Прочие символы запрещены
+            
+          Источник требований: [Требования к парольной защите](https://wiki.sbermed.ai/pages/viewpage.action?pageId=30641696)
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LoginBody"
+
+    ChangePassword:
+      required: true
+      content:
+        application/json:
+          schema:
+            title: Данные для смены пароля
+            type: object
+            required:
+              - pwd
+            properties:
+              pwd:
+                type: string
+                example: "12345A_heh"
+                description: Новый пароль
+
+  responses: 
+
+    200-session-created:
+      description: Сессия создана, токен и информация о пользователе получены
+      content:
+        application-json:
+          schema:
+            title: Токен и информация о пользователе
+            allOf:
+            - type: object
+              required:
+              - res
+              properties:
+                res:
+                  description: Возвращаемый результат
+                  type: object
+                  required:
+                    - token
+                  properties:
+                    sid:
+                      description: Токен
+                      type: string
+                      example: da77d54cb3c16cf624b2b871ed6c5889a7ae9ee205cfc760af144a825508
+                    user_id:
+                      description: ID пользователя
+                      type: integer
+                      example: 1337
+                    user_login:
+                      description: Логин пользователя
+                      type: string
+                      example: test_user
+                    user_type:
+                      $ref: "#/components/schemas/UserTypes"
+                    need_change_pwd:
+                      description: >
+                        Необходиомость смены пароля
+                          * 0 - Не нужно менять
+                          * 1 - Нужно менять
+                      type: integer
+                      enum:
+                        - 0
+                        - 1
+            - $ref: '#/components/schemas/ErrorAndComments'
+
+    401-wrong-token:
+      description: Токен отсутствует, просрочен или не зарегистрирован
+      content:
+        application-json:
+          schema:
+            $ref: '#/components/schemas/StandardResponse'
+          example:
+            res : null
+            error_code : wrong-token
+            comments : Токен отсутствует, просрочен или не зарегистрирован
+  
+  examples:
+
+    400-wrong-request:
+      summary: Неверный запрос
+      value:
+        res: null
+        error: wrong-request
+        comments: wrong-parameter
+
+    400-no-login:
+      summary: Логин не передан
+      value:
+        res: null
+        error: 45
+        comments: Логин не передан  
+
+    400-no-password:
+      summary: Пароль не передан
+      value:
+        res: null
+        error_code: 45
+        comments: Пароль не передан
+
+    401-wrong-login:
+      summary: Неверный логин
+      value:
+        res: null
+        error: 43
+        comments: Пользователь с логином test_user отсутствует в системе
+
+    401-wrong-password:
+      summary: Неверный пароль
+      value:
+        res: null
+        error: 43
+        comments: Неверный пароль для пользователя с логином test_user
+
+  schemas:
+    
+    
+    
+    LoginBody:
+      title: Данные для авторизации
+      type: object
+      required:
+        - login
+        - pwd
+        - date_start
+      properties:
+        login:
+          type: string
+          example: doctor_1
+          description: Логин пользователя
+        pwd:
+          type: string
+          example: "123sfs123dsaA_A"
+          description: Пароль пользоватля
+        date_start:
+          description: > 
+            Дата начала сессии
+              
+            *Бесмысленное поле, но его нужно заполнить*
+          type: string
+          format: dateTime
+          example: "2021-06-23T12:00:01+05:00"
+    
+    User:
+      title: Информация о пользователе
+      type: object
+      required:
+        - id
+        - login
+        - email
+        - user_type
+        - date_create
+        - company_id
+        - need_change_pwd
+        - state
+      properties:
+        id:
+          description: ID пользователя
+          type: integer
+          example: 47
+        login:
+          description: Логин пользователя
+          type: string
+          example: test_user
+        email:
+          description: Email пользователя
+          type: string
+          nullable: true
+          example: test_user@domain.com
+        user_type:
+          $ref: '#/components/schemas/UserTypes'
+        date_create:
+          description: Дата создания пользователя
+          type: string
+          format: date-time
+          example: 2021-06-23T12:00:01+05:00
+        company_id:
+          description: ID организации, которой принадлежит пользователь
+          type: integer
+          example: 12
+        need_change_pwd:
+          description: >
+            Необходиомость смены пароля
+              * 0 - Не нужно менять
+              * 1 - Нужно менять
+          type: integer
+          enum:
+            - 0
+            - 1
+          example: 0
+        state:
+          description: Статус пользователя
+          type: integer
+          example: 0
+
+    Balance:
+      title: Баланс???
+      type: object
+      required:
+        - id
+        - company_id
+        - doctor_id
+        - balance
+        - date_create
+        - balance_date
+      properties:
+        id:
+          description: ID чего-то
+          type: integer
+          example: 22
+        company_id:
+          description: ID организации, которой принадлежит пользователь
+          type: integer
+          nullable: true
+          example: null
+        doctor_id:
+          description: ID врача
+          type: integer
+          nullable: true
+          example: 31
+        balance:
+          description: Баланс ???
+          type: integer
+          example: 1000
+        balance_date:
+          description: Дата баланса ???
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    ConsultCenterBrief:
+      title: Краткая информация о консультационном центре
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          description: ID компании
+          type: integer
+          example: 12
+        company_name:
+          description: Наименование компании
+          type: string
+          example: Test Consult Center
+        company_type:
+          $ref: '#/components/schemas/CompanyTypes'
+
+    UserTypes:
+      title: Типы пользователей
+      description: >
+        Значения:
+          * `doctor` - Доктор
+          * `consultant` - Консультант
+          * `admin` - Администратор
+          * `gate` - Шлюз
+      type: string
+      enum:
+        - doctor
+        - consultant
+        - admin
+        - gate
+
+    CompanyTypes:
+      title: Типы компаний
+      description: >
+        Значения:
+          * `hospital` - Лечебно-профилактическое учреждение (ЛПУ)
+          * `consult_center` - консультационный центр (КЦ)
+      type: string
+      enum:
+        - hospital
+        - consult_center
+      example: consult_center
+    
+    DefaultResponse:
+      type: object
+      required:
+        - res
+        - error
+        - comments
+      properties:
+        res:
+          type: string
+          description: "usualy empty string"
+        error:
+          type: string
+          description: "0 if ok, 1 if fail"
+        comments:
+          type: string
+          description: "empty string if ok else - error description"
+
+    ErrorAndComments:
+      title: Код и описание ошибки
+      type: object
+      required:
+      - error
+      - comments
+      properties:
+        error:
+          description: Код ошибки
+          type: string
+          nullable: true
+          example: 
+        comments:
+          description: Описание ошибки
+          type: string
+          nullable: true
+          example: 
+
+    StandardResponse:
+      title: Стандартный ответ
+      allOf:
+      - type: object
+        required:
+        - res
+        properties:
+          res:
+            description: Возвращаемый результат
+            type: object
+            nullable: true
+            example: 
+      - $ref: '#/components/schemas/ErrorAndComments'
+
+    #RegisterBody:
+      #type: object
+      #required:
+       # - login
+        #- pwd
+        #- company_id
+        #- user_type
+      #properties:
+        #login:
+          #type: string
+          #example: doctor_1
+        #pwd:
+          #type: string
+          #example: 12345
+        #email:
+          #type: string
+          #example: null
+        #company_id:
+          #type: integer
+          #example: 1
+        #user_type:
+          #type: string
+          #enum: [ doctor, consultant, gate ]
